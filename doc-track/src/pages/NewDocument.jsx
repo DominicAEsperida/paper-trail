@@ -1,39 +1,39 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, FilePlus, CheckCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, FilePlus, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react'
 import { DOCUMENT_TYPES, OFFICES, PRIORITIES } from '../data/constants.js'
+import { createDocument } from '../services/documentService.js'
 
 const EMPTY_FORM = {
-    title: '',
-    requester: '',
-    contact: '',
-    type: '',
-    office: '',
-    priority: 'Normal',
-    notes: '',
+    title: '', requester: '', contact: '',
+    type: '', office: '', priority: 'Normal', notes: '',
 }
 
 function FieldLabel({ children, required }) {
     return (
         <label className="text-xs font-semibold text-stone-600 block mb-1.5 uppercase tracking-wide">
-            {children}
-            {required && <span className="text-red-400 ml-1">*</span>}
+            {children}{required && <span className="text-red-400 ml-1">*</span>}
         </label>
     )
 }
 
 function inputClass(hasError) {
     return `w-full px-3 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 bg-stone-50 placeholder:text-stone-400 transition-colors
-    ${hasError
-            ? 'border-red-300 focus:ring-red-200 bg-red-50'
-            : 'border-stone-200 focus:ring-stone-300'
-        }`
+    ${hasError ? 'border-red-300 focus:ring-red-200 bg-red-50' : 'border-stone-200 focus:ring-stone-300'}`
+}
+
+function generateId() {
+    const year = new Date().getFullYear()
+    const rand = String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')
+    return `DOC-${year}-${rand}`
 }
 
 export default function NewDocument() {
     const navigate = useNavigate()
     const [form, setForm] = useState(EMPTY_FORM)
     const [errors, setErrors] = useState({})
+    const [saving, setSaving] = useState(false)
+    const [saveError, setSaveError] = useState('')
     const [submitted, setSubmitted] = useState(false)
     const [newDocId, setNewDocId] = useState('')
 
@@ -52,58 +52,30 @@ export default function NewDocument() {
         return e
     }
 
-    function generateId() {
-        const year = new Date().getFullYear()
-        const rand = String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')
-        return `DOC-${year}-${rand}`
-    }
-
-    function handleSubmit(e) {
+    async function handleSubmit(e) {
         e.preventDefault()
         const errs = validate()
-        if (Object.keys(errs).length > 0) {
-            setErrors(errs)
-            return
+        if (Object.keys(errs).length > 0) { setErrors(errs); return }
+
+        setSaving(true)
+        setSaveError('')
+
+        try {
+            const id = generateId()
+            await createDocument(form, id)
+            setNewDocId(id)
+            setSubmitted(true)
+        } catch (err) {
+            setSaveError(err.message)
+        } finally {
+            setSaving(false)
         }
-
-        const id = generateId()
-        const today = new Date().toISOString().split('T')[0]
-        const timeStr = new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: false })
-
-        // In a real app, you would POST this to your API.
-        // For now, we log it to the console so you can see the full object.
-        const newDocument = {
-            id,
-            title: form.title.trim(),
-            requester: form.requester.trim(),
-            contact: form.contact.trim(),
-            type: form.type,
-            status: 'Received',
-            currentHandler: 'Front Desk',
-            office: form.office,
-            dateSubmitted: today,
-            lastUpdated: today,
-            priority: form.priority,
-            notes: form.notes.trim(),
-            trail: [
-                {
-                    date: `${today} ${timeStr}`,
-                    actor: 'Front Desk',
-                    action: 'Document received and logged into the system.',
-                    status: 'Received',
-                },
-            ],
-        }
-
-        console.log('New document created:', newDocument)
-
-        setNewDocId(id)
-        setSubmitted(true)
     }
 
     function handleReset() {
         setForm(EMPTY_FORM)
         setErrors({})
+        setSaveError('')
         setSubmitted(false)
         setNewDocId('')
     }
@@ -117,20 +89,18 @@ export default function NewDocument() {
                         <CheckCircle size={28} strokeWidth={1.75} className="text-green-600" />
                     </div>
                     <h2 className="text-lg font-semibold text-stone-800 mb-1">Document Logged</h2>
-                    <p className="text-sm text-stone-500 mb-1">
-                        The document has been received and assigned tracking number:
-                    </p>
+                    <p className="text-sm text-stone-500 mb-1">Assigned tracking number:</p>
                     <p className="text-lg font-mono font-bold text-blue-600 mb-6">{newDocId}</p>
-
                     <div className="bg-stone-50 border border-stone-200 rounded-lg p-4 text-left mb-6 space-y-2">
-                        <Row label="Title" value={form.title} />
-                        <Row label="Requester" value={form.requester} />
-                        <Row label="Contact" value={form.contact} />
-                        <Row label="Type" value={form.type} />
-                        <Row label="Office" value={form.office} />
-                        <Row label="Priority" value={form.priority} />
+                        {[['Title', form.title], ['Requester', form.requester], ['Contact', form.contact],
+                        ['Type', form.type], ['Office', form.office], ['Priority', form.priority]
+                        ].map(([label, value]) => (
+                            <div key={label} className="flex justify-between items-start gap-4">
+                                <span className="text-xs text-stone-400 shrink-0">{label}</span>
+                                <span className="text-xs font-medium text-stone-700 text-right">{value}</span>
+                            </div>
+                        ))}
                     </div>
-
                     <div className="flex gap-3">
                         <button
                             onClick={() => navigate('/dashboard')}
@@ -153,8 +123,6 @@ export default function NewDocument() {
     // ── Form ──
     return (
         <div className="p-6 max-w-2xl mx-auto">
-
-            {/* Header */}
             <button
                 onClick={() => navigate('/dashboard')}
                 className="flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-800 mb-5 transition-colors group"
@@ -173,7 +141,7 @@ export default function NewDocument() {
                 </div>
             </div>
 
-            {/* Error summary */}
+            {/* Validation error summary */}
             {Object.keys(errors).length > 0 && (
                 <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-lg mb-5">
                     <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
@@ -188,15 +156,20 @@ export default function NewDocument() {
                 </div>
             )}
 
+            {/* Supabase error */}
+            {saveError && (
+                <div className="flex items-center gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-lg mb-5">
+                    <AlertCircle size={16} className="text-red-500 shrink-0" />
+                    <p className="text-sm text-red-700 font-medium">{saveError}</p>
+                </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-5">
 
-                {/* Section: Document Details */}
+                {/* Document details */}
                 <div className="bg-white border border-stone-200 rounded-xl p-5 space-y-4">
-                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
-                        Document Details
-                    </p>
+                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Document Details</p>
 
-                    {/* Title */}
                     <div>
                         <FieldLabel required>Document Title</FieldLabel>
                         <input
@@ -209,7 +182,6 @@ export default function NewDocument() {
                         {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title}</p>}
                     </div>
 
-                    {/* Type + Priority row */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <FieldLabel required>Document Type</FieldLabel>
@@ -219,20 +191,16 @@ export default function NewDocument() {
                                 className={inputClass(errors.type)}
                             >
                                 <option value="">— Select type —</option>
-                                {DOCUMENT_TYPES.map(t => (
-                                    <option key={t} value={t}>{t}</option>
-                                ))}
+                                {DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
                             {errors.type && <p className="text-xs text-red-500 mt-1">{errors.type}</p>}
                         </div>
-
                         <div>
                             <FieldLabel>Priority</FieldLabel>
                             <div className="flex gap-2">
                                 {Object.keys(PRIORITIES).map(p => (
                                     <button
-                                        key={p}
-                                        type="button"
+                                        key={p} type="button"
                                         onClick={() => handleChange('priority', p)}
                                         className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-colors
                       ${form.priority === p
@@ -249,7 +217,6 @@ export default function NewDocument() {
                         </div>
                     </div>
 
-                    {/* Office */}
                     <div>
                         <FieldLabel required>Forwarding Office</FieldLabel>
                         <select
@@ -258,19 +225,16 @@ export default function NewDocument() {
                             className={inputClass(errors.office)}
                         >
                             <option value="">— Select office —</option>
-                            {OFFICES.map(o => (
-                                <option key={o} value={o}>{o}</option>
-                            ))}
+                            {OFFICES.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                         {errors.office && <p className="text-xs text-red-500 mt-1">{errors.office}</p>}
                     </div>
 
-                    {/* Notes */}
                     <div>
                         <FieldLabel>Internal Notes</FieldLabel>
                         <textarea
                             rows={3}
-                            placeholder="Any remarks about the document, requirements, or special instructions…"
+                            placeholder="Any remarks, requirements, or special instructions…"
                             value={form.notes}
                             onChange={e => handleChange('notes', e.target.value)}
                             className={inputClass(false) + ' resize-none'}
@@ -278,13 +242,9 @@ export default function NewDocument() {
                     </div>
                 </div>
 
-                {/* Section: Requester Info */}
+                {/* Requester info */}
                 <div className="bg-white border border-stone-200 rounded-xl p-5 space-y-4">
-                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
-                        Requester Information
-                    </p>
-
-                    {/* Name */}
+                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Requester Information</p>
                     <div>
                         <FieldLabel required>Full Name</FieldLabel>
                         <input
@@ -296,8 +256,6 @@ export default function NewDocument() {
                         />
                         {errors.requester && <p className="text-xs text-red-500 mt-1">{errors.requester}</p>}
                     </div>
-
-                    {/* Contact */}
                     <div>
                         <FieldLabel required>Contact (Email or Phone)</FieldLabel>
                         <input
@@ -311,7 +269,6 @@ export default function NewDocument() {
                     </div>
                 </div>
 
-                {/* Submit */}
                 <div className="flex gap-3 pb-6">
                     <button
                         type="button"
@@ -322,24 +279,16 @@ export default function NewDocument() {
                     </button>
                     <button
                         type="submit"
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-stone-800 text-white text-sm font-medium rounded-lg hover:bg-stone-700 transition-colors"
+                        disabled={saving}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-stone-800 text-white text-sm font-medium rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50"
                     >
-                        <FilePlus size={15} strokeWidth={2} />
-                        Log Document
+                        {saving
+                            ? <><RefreshCw size={14} strokeWidth={2} className="animate-spin" /> Saving to database…</>
+                            : <><FilePlus size={15} strokeWidth={2} /> Log Document</>
+                        }
                     </button>
                 </div>
-
             </form>
-        </div>
-    )
-}
-
-// Small helper for the success summary
-function Row({ label, value }) {
-    return (
-        <div className="flex justify-between items-start gap-4">
-            <span className="text-xs text-stone-400 shrink-0">{label}</span>
-            <span className="text-xs font-medium text-stone-700 text-right">{value}</span>
         </div>
     )
 }
