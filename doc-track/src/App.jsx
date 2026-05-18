@@ -1,28 +1,64 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext.jsx'
+import ProtectedRoute from './components/ProtectedRoute.jsx'
 import Sidebar from './components/Sidebar.jsx'
+import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import DocumentDetail from './pages/DocumentDetail.jsx'
 import NewDocument from './pages/NewDocument.jsx'
 
+// ─── Layout ───────────────────────────────────────────────────────────────────
+// Wraps all protected pages with the sidebar shell.
+// Only rendered when the user is logged in.
+
+function AppLayout({ children }) {
+  return (
+    <div className="flex h-screen bg-stone-100 overflow-hidden">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto">
+        {children}
+      </main>
+    </div>
+  )
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="flex h-screen bg-stone-100 overflow-hidden">
+      <AuthProvider>
+        <Routes>
 
-        {/* Sidebar — fixed left navigation */}
-        <Sidebar />
+          {/* Public route — login page, no sidebar */}
+          <Route path="/login" element={<Login />} />
 
-        {/* Main content area — scrollable */}
-        <main className="flex-1 overflow-y-auto">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/documents/:id" element={<DocumentDetail />} />
-            <Route path="/new" element={<NewDocument />} />
-          </Routes>
-        </main>
+          {/* Root redirect */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-      </div>
+          {/* Protected routes — require login, show sidebar */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <AppLayout><Dashboard /></AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/documents/:id" element={
+            <ProtectedRoute>
+              <AppLayout><DocumentDetail /></AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/new" element={
+            <ProtectedRoute>
+              <AppLayout><NewDocument /></AppLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* Catch-all → dashboard */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   )
 }
