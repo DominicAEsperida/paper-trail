@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, FilePlus, FileStack, Clock, CheckCircle, RotateCcw, AlertCircle, RefreshCw } from 'lucide-react'
 import { useDocuments } from '../hooks/useDocuments.js'
+import { useAuth } from '../hooks/useAuth.js'
 import { STATUSES } from '../data/constants.js'
 import { StatusBadge, PriorityBadge, TypeBadge } from '../components/StatusBadge.jsx'
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
 function StatCard({ label, value, icon: Icon, iconColor, iconBg, loading }) {
     return (
         <div className="bg-white rounded-xl border border-stone-200 px-5 py-4 flex items-center gap-4">
@@ -23,7 +23,6 @@ function StatCard({ label, value, icon: Icon, iconColor, iconBg, loading }) {
     )
 }
 
-// ─── Skeleton row ─────────────────────────────────────────────────────────────
 function SkeletonRow() {
     return (
         <div className="grid grid-cols-[1fr_1.6fr_1.2fr_1.1fr_1.1fr_0.7fr] gap-4 px-5 py-3.5 border-b border-stone-100 last:border-b-0 animate-pulse">
@@ -37,10 +36,10 @@ function SkeletonRow() {
     )
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
     const navigate = useNavigate()
     const { documents, loading, error, refetch } = useDocuments()
+    const { canCreate } = useAuth()
 
     const [search, setSearch] = useState('')
     const [filterStatus, setFilterStatus] = useState('All')
@@ -68,7 +67,7 @@ export default function Dashboard() {
     return (
         <div className="p-6 max-w-7xl mx-auto">
 
-            {/* ── Header ── */}
+            {/* Header */}
             <div className="flex items-start justify-between mb-6">
                 <div>
                     <h1 className="text-xl font-semibold text-stone-800">Dashboard</h1>
@@ -76,37 +75,35 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={refetch}
-                        disabled={loading}
+                        onClick={refetch} disabled={loading}
                         className="p-2 rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-50 transition-colors disabled:opacity-40"
                         title="Refresh"
                     >
                         <RefreshCw size={15} strokeWidth={2} className={loading ? 'animate-spin' : ''} />
                     </button>
-                    <button
-                        onClick={() => navigate('/new')}
-                        className="flex items-center gap-2 px-4 py-2 bg-stone-800 text-white text-sm font-medium rounded-lg hover:bg-stone-700 transition-colors"
-                    >
-                        <FilePlus size={15} strokeWidth={2} />
-                        New Document
-                    </button>
+                    {/* Only admins and clerks see this button */}
+                    {canCreate && (
+                        <button
+                            onClick={() => navigate('/new')}
+                            className="flex items-center gap-2 px-4 py-2 bg-stone-800 text-white text-sm font-medium rounded-lg hover:bg-stone-700 transition-colors"
+                        >
+                            <FilePlus size={15} strokeWidth={2} />
+                            New Document
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* ── Error banner ── */}
+            {/* Error banner */}
             {error && (
                 <div className="flex items-center gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-lg mb-5">
                     <AlertCircle size={16} className="text-red-500 shrink-0" />
-                    <p className="text-sm text-red-700">
-                        Could not load documents: <span className="font-medium">{error}</span>
-                    </p>
-                    <button onClick={refetch} className="ml-auto text-xs text-red-600 font-medium hover:underline">
-                        Retry
-                    </button>
+                    <p className="text-sm text-red-700">Could not load documents: <span className="font-medium">{error}</span></p>
+                    <button onClick={refetch} className="ml-auto text-xs text-red-600 font-medium hover:underline">Retry</button>
                 </div>
             )}
 
-            {/* ── Stat Cards ── */}
+            {/* Stat Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                 <StatCard label="Total Documents" value={total} icon={FileStack} iconBg="bg-blue-50" iconColor="text-blue-600" loading={loading} />
                 <StatCard label="In Progress" value={inProgress} icon={Clock} iconBg="bg-amber-50" iconColor="text-amber-600" loading={loading} />
@@ -114,7 +111,7 @@ export default function Dashboard() {
                 <StatCard label="Returned / Issues" value={returned + completed} icon={RotateCcw} iconBg="bg-stone-50" iconColor="text-stone-500" loading={loading} />
             </div>
 
-            {/* ── Filters ── */}
+            {/* Filters */}
             <div className="bg-white border border-stone-200 rounded-xl p-4 mb-4">
                 <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
@@ -127,37 +124,25 @@ export default function Dashboard() {
                             className="w-full pl-9 pr-4 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50 placeholder:text-stone-400"
                         />
                     </div>
-                    <select
-                        value={filterStatus}
-                        onChange={e => setFilterStatus(e.target.value)}
-                        className="px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50 text-stone-700 cursor-pointer"
-                    >
+                    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                        className="px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50 text-stone-700 cursor-pointer">
                         {allStatuses.map(s => <option key={s} value={s}>{s === 'All' ? 'All Statuses' : s}</option>)}
                     </select>
-                    <select
-                        value={filterType}
-                        onChange={e => setFilterType(e.target.value)}
-                        className="px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50 text-stone-700 cursor-pointer"
-                    >
+                    <select value={filterType} onChange={e => setFilterType(e.target.value)}
+                        className="px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50 text-stone-700 cursor-pointer">
                         {allTypes.map(t => <option key={t} value={t}>{t === 'All' ? 'All Types' : t}</option>)}
                     </select>
                 </div>
             </div>
 
-            {/* ── Document Table ── */}
+            {/* Table */}
             <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
                 <div className="grid grid-cols-[1fr_1.6fr_1.2fr_1.1fr_1.1fr_0.7fr] gap-4 px-5 py-3 bg-stone-50 border-b border-stone-200 text-xs font-semibold text-stone-500 uppercase tracking-wider">
-                    <span>Doc ID</span>
-                    <span>Title</span>
-                    <span>Requester</span>
-                    <span>Status</span>
-                    <span>Office</span>
-                    <span>Priority</span>
+                    <span>Doc ID</span><span>Title</span><span>Requester</span>
+                    <span>Status</span><span>Office</span><span>Priority</span>
                 </div>
 
-                {loading && (
-                    <><SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow /></>
-                )}
+                {loading && <><SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow /></>}
 
                 {!loading && filtered.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-16 text-stone-400">

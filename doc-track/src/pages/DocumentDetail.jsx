@@ -2,14 +2,14 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
     ArrowLeft, User, Building2, Phone, Calendar,
-    Clock, CheckCircle, Circle, AlertCircle, ChevronRight, RefreshCw
+    Clock, CheckCircle, Circle, AlertCircle, ChevronRight, RefreshCw, Lock
 } from 'lucide-react'
 import { useDocument } from '../hooks/useDocument.js'
+import { useAuth } from '../hooks/useAuth.js'
 import { updateDocument } from '../services/documentService.js'
-import { STATUSES, STATUS_ORDER, PRIORITIES } from '../data/constants.js'
+import { STATUSES, STATUS_ORDER } from '../data/constants.js'
 import { StatusBadge, PriorityBadge, TypeBadge } from '../components/StatusBadge.jsx'
 
-// ─── Progress Stepper ─────────────────────────────────────────────────────────
 function ProgressStepper({ currentStatus }) {
     const currentIdx = STATUS_ORDER.indexOf(currentStatus)
     const isReturned = currentStatus === 'Returned'
@@ -33,23 +33,17 @@ function ProgressStepper({ currentStatus }) {
                     <div key={step} className="flex items-center gap-1 flex-1 min-w-0">
                         <div className="flex flex-col items-center gap-1 min-w-0">
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border-2 transition-colors
-                ${isDone ? 'bg-green-500 border-green-500' :
-                                    isCurrent ? 'bg-blue-500 border-blue-500' :
-                                        'bg-white border-stone-300'}`}
-                            >
+                ${isDone ? 'bg-green-500 border-green-500' : isCurrent ? 'bg-blue-500 border-blue-500' : 'bg-white border-stone-300'}`}>
                                 {isDone ? <CheckCircle size={12} strokeWidth={2.5} className="text-white" /> :
                                     isCurrent ? <Circle size={8} strokeWidth={3} className="text-white fill-white" /> : null}
                             </div>
                             <span className={`text-[10px] text-center leading-tight hidden sm:block
-                ${isCurrent ? 'text-blue-600 font-semibold' :
-                                    isDone ? 'text-green-600' : 'text-stone-400'}`}
-                            >
+                ${isCurrent ? 'text-blue-600 font-semibold' : isDone ? 'text-green-600' : 'text-stone-400'}`}>
                                 {step}
                             </span>
                         </div>
                         {!isLast && (
-                            <div className={`h-0.5 flex-1 mb-4 rounded-full transition-colors
-                ${idx < currentIdx ? 'bg-green-400' : 'bg-stone-200'}`} />
+                            <div className={`h-0.5 flex-1 mb-4 rounded-full ${idx < currentIdx ? 'bg-green-400' : 'bg-stone-200'}`} />
                         )}
                     </div>
                 )
@@ -58,7 +52,6 @@ function ProgressStepper({ currentStatus }) {
     )
 }
 
-// ─── Audit Trail Entry ────────────────────────────────────────────────────────
 function TrailEntry({ entry, isLast }) {
     const config = STATUSES[entry.status] || {}
     return (
@@ -79,7 +72,6 @@ function TrailEntry({ entry, isLast }) {
     )
 }
 
-// ─── Info Row ─────────────────────────────────────────────────────────────────
 function InfoRow({ icon: Icon, label, value }) {
     return (
         <div className="flex items-start gap-3">
@@ -94,7 +86,6 @@ function InfoRow({ icon: Icon, label, value }) {
     )
 }
 
-// ─── Loading skeleton ─────────────────────────────────────────────────────────
 function DetailSkeleton() {
     return (
         <div className="p-6 max-w-5xl mx-auto animate-pulse">
@@ -110,11 +101,11 @@ function DetailSkeleton() {
     )
 }
 
-// ─── Document Detail ──────────────────────────────────────────────────────────
 export default function DocumentDetail() {
     const { id } = useParams()
     const navigate = useNavigate()
     const { document: doc, loading, error, refetch } = useDocument(id)
+    const { canUpdate, profile } = useAuth()
 
     const [newStatus, setNewStatus] = useState('')
     const [newHandler, setNewHandler] = useState('')
@@ -125,7 +116,6 @@ export default function DocumentDetail() {
     const [successMsg, setSuccessMsg] = useState('')
 
     if (loading) return <DetailSkeleton />
-
     if (error || !doc) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-stone-400 gap-3 p-6">
@@ -141,22 +131,16 @@ export default function DocumentDetail() {
     async function handleUpdate(e) {
         e.preventDefault()
         if (!newStatus && !updateNote) return
-
         setSaving(true)
         setSaveError('')
-
         try {
             await updateDocument(id, {
-                newStatus,
-                newHandler,
-                updateNote,
+                newStatus, newHandler, updateNote,
                 currentStatus: doc.status,
                 currentHandler: doc.currentHandler,
             })
             setSuccessMsg('Document updated successfully.')
-            setNewStatus('')
-            setNewHandler('')
-            setUpdateNote('')
+            setNewStatus(''); setNewHandler(''); setUpdateNote('')
             setShowForm(false)
             await refetch()
             setTimeout(() => setSuccessMsg(''), 3000)
@@ -170,7 +154,7 @@ export default function DocumentDetail() {
     return (
         <div className="p-6 max-w-5xl mx-auto">
 
-            {/* ── Back ── */}
+            {/* Back */}
             <button
                 onClick={() => navigate('/dashboard')}
                 className="flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-800 mb-5 transition-colors group"
@@ -179,7 +163,7 @@ export default function DocumentDetail() {
                 Back to Dashboard
             </button>
 
-            {/* ── Header ── */}
+            {/* Header */}
             <div className="flex items-start justify-between gap-4 mb-6">
                 <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -191,24 +175,20 @@ export default function DocumentDetail() {
                     <p className="text-sm text-stone-500 mt-0.5">Last updated: {doc.lastUpdated}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                    <button
-                        onClick={refetch}
-                        className="p-2 rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-50 transition-colors"
-                        title="Refresh"
-                    >
+                    <button onClick={refetch} className="p-2 rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-50 transition-colors" title="Refresh">
                         <RefreshCw size={15} strokeWidth={2} />
                     </button>
                     <StatusBadge status={doc.status} />
                 </div>
             </div>
 
-            {/* ── Progress stepper ── */}
+            {/* Stepper */}
             <div className="bg-white border border-stone-200 rounded-xl p-5 mb-4">
                 <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-4">Progress</p>
                 <ProgressStepper currentStatus={doc.status} />
             </div>
 
-            {/* ── Success / error banners ── */}
+            {/* Banners */}
             {successMsg && (
                 <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg mb-4">
                     <CheckCircle size={15} className="text-green-600 shrink-0" />
@@ -224,7 +204,7 @@ export default function DocumentDetail() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-                {/* ── Audit trail ── */}
+                {/* Audit trail + update */}
                 <div className="lg:col-span-2 space-y-4">
                     <div className="bg-white border border-stone-200 rounded-xl p-5">
                         <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-5">Audit Trail</p>
@@ -233,27 +213,36 @@ export default function DocumentDetail() {
                         ))}
                     </div>
 
-                    {/* Update form */}
+                    {/* Update form — only for admin, clerk, officer */}
                     <div className="bg-white border border-stone-200 rounded-xl p-5">
                         <div className="flex items-center justify-between mb-4">
                             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Update Document</p>
-                            <button
-                                onClick={() => setShowForm(v => !v)}
-                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
-                            >
-                                {showForm ? 'Cancel' : <>Add Update <ChevronRight size={13} strokeWidth={2} /></>}
-                            </button>
+                            {canUpdate && (
+                                <button
+                                    onClick={() => setShowForm(v => !v)}
+                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                >
+                                    {showForm ? 'Cancel' : <>Add Update <ChevronRight size={13} strokeWidth={2} /></>}
+                                </button>
+                            )}
                         </div>
 
-                        {showForm && (
+                        {/* Viewer sees a locked notice */}
+                        {!canUpdate && (
+                            <div className="flex items-center gap-2 p-3 bg-stone-50 border border-stone-200 rounded-lg">
+                                <Lock size={14} className="text-stone-400 shrink-0" />
+                                <p className="text-xs text-stone-500">
+                                    Your role (<span className="font-medium capitalize">{profile?.role}</span>) does not have permission to update documents.
+                                </p>
+                            </div>
+                        )}
+
+                        {canUpdate && showForm && (
                             <form onSubmit={handleUpdate} className="space-y-3">
                                 <div>
                                     <label className="text-xs font-medium text-stone-600 block mb-1">New Status</label>
-                                    <select
-                                        value={newStatus}
-                                        onChange={e => setNewStatus(e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50"
-                                    >
+                                    <select value={newStatus} onChange={e => setNewStatus(e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50">
                                         <option value="">— Keep current status —</option>
                                         {Object.keys(STATUSES).map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
@@ -270,19 +259,13 @@ export default function DocumentDetail() {
                                 </div>
                                 <div>
                                     <label className="text-xs font-medium text-stone-600 block mb-1">Remarks / Action Taken</label>
-                                    <textarea
-                                        rows={3}
-                                        placeholder="Describe what was done or what changed…"
-                                        value={updateNote}
-                                        onChange={e => setUpdateNote(e.target.value)}
+                                    <textarea rows={3} placeholder="Describe what was done or what changed…"
+                                        value={updateNote} onChange={e => setUpdateNote(e.target.value)}
                                         className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50 placeholder:text-stone-400 resize-none"
                                     />
                                 </div>
-                                <button
-                                    type="submit"
-                                    disabled={saving}
-                                    className="w-full py-2 bg-stone-800 text-white text-sm font-medium rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
+                                <button type="submit" disabled={saving}
+                                    className="w-full py-2 bg-stone-800 text-white text-sm font-medium rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                                     {saving
                                         ? <><RefreshCw size={13} strokeWidth={2} className="animate-spin" /> Saving…</>
                                         : 'Save Update'
@@ -291,13 +274,13 @@ export default function DocumentDetail() {
                             </form>
                         )}
 
-                        {!showForm && (
+                        {canUpdate && !showForm && (
                             <p className="text-xs text-stone-400">Click "Add Update" to log a new action or change the document status.</p>
                         )}
                     </div>
                 </div>
 
-                {/* ── Right panel ── */}
+                {/* Right panel */}
                 <div className="space-y-4">
                     <div className="bg-white border border-stone-200 rounded-xl p-5">
                         <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-4">Requester</p>
