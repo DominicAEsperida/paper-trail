@@ -48,8 +48,8 @@ export default function Sidebar() {
                         <FileStack size={15} strokeWidth={2} className="text-white" />
                     </div>
                     <div className="text-left">
-                        <p className="text-white text-sm font-semibold leading-tight">DocTracker</p>
-                        <p className="text-stone-500 text-xs leading-tight">Gov't Document System</p>
+                        <p className="text-white text-sm font-semibold leading-tight">PaperTrail</p>
+                        <p className="text-stone-500 text-xs leading-tight">Document Tracking System</p>
                     </div>
                 </button>
             </div>
