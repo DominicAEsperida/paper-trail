@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
     ArrowLeft, User, Building2, Phone, Calendar,
-    Clock, CheckCircle, Circle, AlertCircle, ChevronRight, RefreshCw, Lock
+    Clock, CheckCircle, Circle, AlertCircle, ChevronRight, RefreshCw, Lock, Bell
 } from 'lucide-react'
 import { useDocument } from '../hooks/useDocument.js'
 import { useAuth } from '../hooks/useAuth.js'
 import { updateDocument } from '../services/documentService.js'
+import { sendPickupNotification } from '../services/notificationService.js'
 import { STATUSES, STATUS_ORDER } from '../data/constants.js'
 import { StatusBadge, PriorityBadge, TypeBadge } from '../components/StatusBadge.jsx'
 
@@ -114,6 +115,8 @@ export default function DocumentDetail() {
     const [saving, setSaving] = useState(false)
     const [saveError, setSaveError] = useState('')
     const [successMsg, setSuccessMsg] = useState('')
+    const [notifStatus, setNotifStatus] = useState('') // 'sending' | 'sent' | 'failed'
+    const [notifChannel, setNotifChannel] = useState('') // 'email' | 'sms'
 
     if (loading) return <DetailSkeleton />
     if (error || !doc) {
@@ -131,19 +134,42 @@ export default function DocumentDetail() {
     async function handleUpdate(e) {
         e.preventDefault()
         if (!newStatus && !updateNote) return
+
         setSaving(true)
         setSaveError('')
+
         try {
             await updateDocument(id, {
                 newStatus, newHandler, updateNote,
                 currentStatus: doc.status,
                 currentHandler: doc.currentHandler,
             })
+
             setSuccessMsg('Document updated successfully.')
-            setNewStatus(''); setNewHandler(''); setUpdateNote('')
             setShowForm(false)
             await refetch()
-            setTimeout(() => setSuccessMsg(''), 3000)
+            setTimeout(() => setSuccessMsg(''), 4000)
+
+            // ── Auto-notify when status becomes Ready for Pickup ──────────────────
+            if (newStatus === 'Ready for Pickup' && doc.contact) {
+                setNotifStatus('sending')
+                try {
+                    const result = await sendPickupNotification({
+                        id: doc.id,
+                        title: doc.title,
+                        requester: doc.requester,
+                        contact: doc.contact,
+                    })
+                    setNotifStatus('sent')
+                    setNotifChannel(result.channel)
+                    setTimeout(() => setNotifStatus(''), 6000)
+                } catch (notifErr) {
+                    setNotifStatus('failed')
+                    setTimeout(() => setNotifStatus(''), 6000)
+                }
+            }
+
+            setNewStatus(''); setNewHandler(''); setUpdateNote('')
         } catch (err) {
             setSaveError(err.message)
         } finally {
@@ -182,7 +208,7 @@ export default function DocumentDetail() {
                 </div>
             </div>
 
-            {/* Stepper */}
+            {/* Progress stepper */}
             <div className="bg-white border border-stone-200 rounded-xl p-5 mb-4">
                 <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-4">Progress</p>
                 <ProgressStepper currentStatus={doc.status} />
@@ -190,13 +216,38 @@ export default function DocumentDetail() {
 
             {/* Banners */}
             {successMsg && (
-                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg mb-4">
+                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg mb-3">
                     <CheckCircle size={15} className="text-green-600 shrink-0" />
                     <p className="text-sm text-green-700 font-medium">{successMsg}</p>
                 </div>
             )}
+
+            {/* Notification status banner */}
+            {notifStatus === 'sending' && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3">
+                    <RefreshCw size={15} className="text-blue-500 shrink-0 animate-spin" />
+                    <p className="text-sm text-blue-700 font-medium">Sending notification to requester…</p>
+                </div>
+            )}
+            {notifStatus === 'sent' && (
+                <div className="flex items-center gap-2 p-3 bg-teal-50 border border-teal-200 rounded-lg mb-3">
+                    <Bell size={15} className="text-teal-600 shrink-0" />
+                    <p className="text-sm text-teal-700 font-medium">
+                        Requester notified via {notifChannel === 'email' ? 'email' : 'SMS'} — {doc.contact}
+                    </p>
+                </div>
+            )}
+            {notifStatus === 'failed' && (
+                <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
+                    <AlertCircle size={15} className="text-amber-600 shrink-0" />
+                    <p className="text-sm text-amber-700 font-medium">
+                        Document updated but notification could not be sent. Notify the requester manually.
+                    </p>
+                </div>
+            )}
+
             {saveError && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-3">
                     <AlertCircle size={15} className="text-red-500 shrink-0" />
                     <p className="text-sm text-red-700 font-medium">{saveError}</p>
                 </div>
@@ -204,7 +255,7 @@ export default function DocumentDetail() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-                {/* Audit trail + update */}
+                {/* Audit trail + update form */}
                 <div className="lg:col-span-2 space-y-4">
                     <div className="bg-white border border-stone-200 rounded-xl p-5">
                         <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-5">Audit Trail</p>
@@ -213,7 +264,6 @@ export default function DocumentDetail() {
                         ))}
                     </div>
 
-                    {/* Update form — only for admin, clerk, officer */}
                     <div className="bg-white border border-stone-200 rounded-xl p-5">
                         <div className="flex items-center justify-between mb-4">
                             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Update Document</p>
@@ -227,7 +277,6 @@ export default function DocumentDetail() {
                             )}
                         </div>
 
-                        {/* Viewer sees a locked notice */}
                         {!canUpdate && (
                             <div className="flex items-center gap-2 p-3 bg-stone-50 border border-stone-200 rounded-lg">
                                 <Lock size={14} className="text-stone-400 shrink-0" />
@@ -241,11 +290,21 @@ export default function DocumentDetail() {
                             <form onSubmit={handleUpdate} className="space-y-3">
                                 <div>
                                     <label className="text-xs font-medium text-stone-600 block mb-1">New Status</label>
-                                    <select value={newStatus} onChange={e => setNewStatus(e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50">
+                                    <select
+                                        value={newStatus}
+                                        onChange={e => setNewStatus(e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50"
+                                    >
                                         <option value="">— Keep current status —</option>
                                         {Object.keys(STATUSES).map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
+                                    {/* Notify hint */}
+                                    {newStatus === 'Ready for Pickup' && (
+                                        <div className="flex items-center gap-1.5 mt-1.5 text-xs text-teal-700">
+                                            <Bell size={12} strokeWidth={2} />
+                                            Requester will be notified automatically via {doc.contact?.includes('@') ? 'email' : 'SMS'}
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="text-xs font-medium text-stone-600 block mb-1">Handled By</label>
@@ -259,13 +318,18 @@ export default function DocumentDetail() {
                                 </div>
                                 <div>
                                     <label className="text-xs font-medium text-stone-600 block mb-1">Remarks / Action Taken</label>
-                                    <textarea rows={3} placeholder="Describe what was done or what changed…"
-                                        value={updateNote} onChange={e => setUpdateNote(e.target.value)}
+                                    <textarea
+                                        rows={3}
+                                        placeholder="Describe what was done or what changed…"
+                                        value={updateNote}
+                                        onChange={e => setUpdateNote(e.target.value)}
                                         className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-300 bg-stone-50 placeholder:text-stone-400 resize-none"
                                     />
                                 </div>
-                                <button type="submit" disabled={saving}
-                                    className="w-full py-2 bg-stone-800 text-white text-sm font-medium rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                <button
+                                    type="submit" disabled={saving}
+                                    className="w-full py-2 bg-stone-800 text-white text-sm font-medium rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
                                     {saving
                                         ? <><RefreshCw size={13} strokeWidth={2} className="animate-spin" /> Saving…</>
                                         : 'Save Update'
